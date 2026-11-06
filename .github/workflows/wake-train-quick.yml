@@ -1,0 +1,26 @@
+name: Wake train quick (Hey Hermes, small datasets)
+on: workflow_dispatch
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg curl
+      - run: pip install -r wakeword/requirements.txt edge-tts
+      - name: Quick datasets (skip 33GB, use Edge positives + long speech from repo datasets)
+        run: |
+          mkdir -p work/quick/downloads work/quick/sets
+          curl -L -o work/quick/downloads/train-clean-100.tar.gz https://www.openslr.org/resources/12/train-clean-100.tar.gz
+          curl -L -o work/quick/downloads/rirs_noises.zip https://www.openslr.org/resources/28/rirs_noises.zip
+          ls -lh work/quick/downloads/
+      - run: python3 wakeword/generate_edge.py --phrase "hey hermes" --samples 500 --out work/quick/sets/positive
+      - run: python3 wakeword/pipeline.py generate --samples 1000 --near-misses 1000 --work work/quick 2>/dev/null || python3 wakeword/pipeline.py generate --samples 1000 --near-misses 1000
+      - run: python3 wakeword/pipeline.py prepare --limit 500 --work work/quick
+      - run: python3 wakeword/pipeline.py features --limit 500 --work work/quick
+      - run: python3 wakeword/pipeline.py train --steps 3000 --work work/quick
+      - run: python3 wakeword/pipeline.py export --work work/quick
+      - uses: actions/upload-artifact@v4
+        with: {name: hey-hermes-quick, path: wakeword/model/}
