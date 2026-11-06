@@ -1,0 +1,21 @@
+name: Wake train (Alya, permissive)
+on: workflow_dispatch
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg curl
+      - run: pip install -r wakeword/requirements.txt edge-tts
+      - run: python3 wakeword/pipeline.py download
+      - run: python3 wakeword/generate_edge.py --phrase "alya" --samples 800 --out work/permissive/sets/positive
+      - run: python3 wakeword/pipeline.py generate --phrase "alya" --phrase "hey alya" --samples 2000 --near-misses 2000
+      - run: python3 wakeword/pipeline.py prepare --limit 1000 --my-voice work/permissive/sets/positive
+      - run: python3 wakeword/pipeline.py features --limit 1000
+      - run: python3 wakeword/pipeline.py train --steps 5000
+      - run: python3 wakeword/pipeline.py export
+      - uses: actions/upload-artifact@v4
+        with: {name: alya-model, path: wakeword/model/}
